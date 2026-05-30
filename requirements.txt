@@ -1,1 +1,4 @@
-Flask\npandas\ngunicorn\nopenpyxl\n
+Flask
+pandas
+gunicorn
+openpyxl
