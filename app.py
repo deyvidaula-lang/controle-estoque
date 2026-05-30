@@ -138,21 +138,67 @@ def importar():
         return jsonify({'erro': 'Nenhum arquivo'}), 400
     
     file = request.files['file']
-    df = pd.read_excel(file)
-    
-    conn = sqlite3.connect('estoque.db')
-    agora = datetime.now().strftime('%d/%m/%Y %H:%M')
-    
-    for _, row in df.iterrows():
-        conn.execute('''
-            INSERT INTO estoque (cod_principal, cod_secundario, descricao, local_gaveta, atualizado)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (str(row.get('Cód. Principal', '')), str(row.get('Cód. Secundário', '')), 
-              str(row.get('Descrição', '')), str(row.get('Local / Gaveta', '')), agora))
-    
-    conn.commit()
-    conn.close()
-    return jsonify({'status': 'sucesso'})
+    try:
+        # Tenta ler a planilha e encontrar a aba correta
+        xl = pd.ExcelFile(file)
+        sheet_name = xl.sheet_names[0]
+        if 'ABASTECER PLANILHA DE LOTES' in xl.sheet_names:
+            sheet_name = 'ABASTECER PLANILHA DE LOTES'
+        
+        df = pd.read_excel(file, sheet_name=sheet_name)
+        
+        # Mapeamento flexível de colunas
+        mapping = {
+            'cod_principal': ['COD.', 'Cód. Principal', 'Codigo', 'Cod'],
+            'descricao': ['Descrição do Produto', 'Descrição', 'Descricao', 'DESC.'],
+            'cod_secundario': ['COD..1', 'Cód. Secundário', 'Secundario'],
+            'local_gaveta': ['GAVETA', 'Local / Gaveta', 'Local', 'Gaveta'],
+            'end_lote_torre': ['END LOTE', 'End. Lote (Torre)', 'Endereço', 'Torre'],
+            'qtd_torre': ['QUNT LOTE', 'Qtd. Torre', 'Quantidade Torre', 'Qtd Torre']
+        }
+        
+        def find_col(possible_names, df_cols):
+            for name in possible_names:
+                if name in df_cols: return name
+                # Busca parcial e case-insensitive
+                for col in df_cols:
+                    if name.lower() in str(col).lower(): return col
+            return None
+
+        cols = df.columns
+        mapped_cols = {key: find_col(val, cols) for key, val in mapping.items()}
+
+        conn = sqlite3.connect('estoque.db')
+        agora = datetime.now().strftime('%d/%m/%Y %H:%M')
+        
+        count = 0
+        for _, row in df.iterrows():
+            # Só importa se tiver pelo menos o código principal ou descrição
+            cp = str(row.get(mapped_cols['cod_principal'], '')) if mapped_cols['cod_principal'] else ''
+            ds = str(row.get(mapped_cols['descricao'], '')) if mapped_cols['descricao'] else ''
+            
+            if cp != 'nan' or ds != 'nan':
+                conn.execute('''
+                    INSERT INTO estoque (cod_principal, cod_secundario, descricao, local_gaveta, 
+                    end_lote_torre, qtd_torre, abastecimento, atualizado)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    cp if cp != 'nan' else '',
+                    str(row.get(mapped_cols['cod_secundario'], '')) if mapped_cols['cod_secundario'] else '',
+                    ds if ds != 'nan' else '',
+                    str(row.get(mapped_cols['local_gaveta'], '')) if mapped_cols['local_gaveta'] else '',
+                    str(row.get(mapped_cols['end_lote_torre'], '')) if mapped_cols['end_lote_torre'] else '',
+                    str(row.get(mapped_cols['qtd_torre'], '')) if mapped_cols['qtd_torre'] else '',
+                    'A Abastecer',
+                    agora
+                ))
+                count += 1
+        
+        conn.commit()
+        conn.close()
+        return jsonify({'status': 'sucesso', 'importados': count})
+    except Exception as e:
+        return jsonify({'erro': str(e)}), 500
 
 @app.route('/admin/usuarios')
 @login_required
