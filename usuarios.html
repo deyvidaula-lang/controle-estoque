@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestão de Usuários - Estoque</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f4f7f6; }
+        .card { border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body class="p-4">
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>👥 Gestão de Acessos</h1>
+            <a href="/" class="btn btn-outline-secondary">Voltar ao Estoque</a>
+        </div>
+
+        <div class="card p-4 mb-4">
+            <h4>Adicionar Novo Usuário</h4>
+            <div class="row g-3">
+                <div class="col-md-5">
+                    <input type="email" id="newEmail" class="form-control" placeholder="Gmail da pessoa">
+                </div>
+                <div class="col-md-4">
+                    <input type="password" id="newPass" class="form-control" placeholder="Senha para ela">
+                </div>
+                <div class="col-md-3">
+                    <button onclick="addUser()" class="btn btn-primary w-100">Adicionar</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card p-4">
+            <h4>Usuários Autorizados</h4>
+            <table class="table table-hover mt-3">
+                <thead class="table-light">
+                    <tr>
+                        <th>E-mail</th>
+                        <th>Tipo</th>
+                        <th>Ação</th>
+                    </tr>
+                </thead>
+                <tbody id="userTable">
+                    {% for u in usuarios %}
+                    <tr>
+                        <td>{{ u.email }}</td>
+                        <td><span class="badge {{ 'bg-danger' if u.role == 'admin' else 'bg-info' }}">{{ u.role }}</span></td>
+                        <td>
+                            {% if u.email != session['user'] %}
+                            <button onclick="deleteUser({{ u.id }})" class="btn btn-sm btn-danger">Remover</button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        async function addUser() {
+            const email = document.getElementById('newEmail').value;
+            const senha = document.getElementById('newPass').value;
+            if(!email || !senha) return alert('Preencha tudo!');
+
+            const res = await fetch('/api/admin/usuarios', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({email, senha})
+            });
+            if(res.ok) location.reload();
+            else alert('Erro ao adicionar usuário');
+        }
+
+        async function deleteUser(id) {
+            if(!confirm('Tem certeza?')) return;
+            const res = await fetch(`/api/admin/usuarios/${id}`, { method: 'DELETE' });
+            if(res.ok) location.reload();
+        }
+    </script>
+</body>
+</html>

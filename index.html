@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Lotes</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <style>
+        :root { --primary: #5d4037; --secondary: #8d6e63; --bg: #fffbf5; }
+        body { background-color: var(--bg); font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+        .navbar { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; padding: 1.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .card { border: none; border-radius: 15px; box-shadow: 0 8px 24px rgba(0,0,0,0.05); margin-bottom: 2rem; background: white; }
+        .stat-card { text-align: center; padding: 1.5rem; transition: transform 0.3s; }
+        .stat-card:hover { transform: translateY(-5px); }
+        .stat-value { font-size: 2rem; font-weight: bold; color: var(--primary); }
+        .table-container { background: white; border-radius: 15px; padding: 1.5rem; overflow-x: auto; }
+        .btn-primary { background-color: var(--primary); border: none; }
+        .btn-primary:hover { background-color: #4e342e; }
+        .status-badge { padding: 0.5rem 1rem; border-radius: 20px; font-weight: 600; font-size: 0.85rem; }
+        .status-abastecer { background-color: #ffebee; color: #c62828; }
+        .status-abastecido { background-color: #e8f5e9; color: #2e7d32; }
+        .search-box { border-radius: 25px; padding-left: 2.5rem; border: 2px solid #eee; }
+        .search-container { position: relative; }
+        .search-icon { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: #999; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar mb-4">
+    <div class="container d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+            <div class="bg-white rounded-3 p-2 me-3">
+                <i class="bi bi-box-seam fs-3 text-primary"></i>
+            </div>
+            <div>
+                <h1 class="h3 mb-0 fw-bold">Controle de Lotes</h1>
+                <p class="small mb-0 opacity-75">Gestão de estoque e abastecimento</p>
+            </div>
+        </div>
+        <div class="d-flex gap-3 align-items-center">
+            <div class="stat-card bg-white bg-opacity-10 rounded-3 px-3 py-2">
+                <span class="small d-block">TOTAL</span>
+                <span id="totalItems" class="fw-bold fs-5">-</span>
+            </div>
+            <div class="stat-card bg-white bg-opacity-10 rounded-3 px-3 py-2">
+                <span class="small d-block">A ABASTECER</span>
+                <span id="totalAbastecer" class="fw-bold fs-5 text-warning">-</span>
+            </div>
+            <div class="stat-card bg-white bg-opacity-10 rounded-3 px-3 py-2">
+                <span class="small d-block">ABASTECIDO</span>
+                <span id="totalAbastecido" class="fw-bold fs-5 text-info">-</span>
+            </div>
+            {% if session['role'] == 'admin' %}
+            <a href="/admin/usuarios" class="btn btn-light btn-sm"><i class="bi bi-people"></i> Gerenciar Usuários</a>
+            {% endif %}
+            <a href="/logout" class="btn btn-outline-light btn-sm"><i class="bi bi-door-open"></i> Sair</a>
+        </div>
+    </div>
+</nav>
+
+<div class="container">
+    <div class="row mb-4 align-items-center g-3">
+        <div class="col-md-6">
+            <div class="search-container">
+                <i class="bi bi-search search-icon"></i>
+                <input type="text" id="search" class="form-control search-box" placeholder="Buscar código, descrição ou local...">
+            </div>
+        </div>
+        <div class="col-md-3">
+            <select id="filtStatus" class="form-select rounded-pill">
+                <option value="">Todos os status</option>
+                <option value="A Abastecer">🔴 A Abastecer</option>
+                <option value="Abastecido">🟢 Abastecido</option>
+            </select>
+        </div>
+        <div class="col-md-3 text-end">
+            <button onclick="document.getElementById('fileInput').click()" class="btn btn-warning rounded-pill px-4 fw-bold">
+                <i class="bi bi-upload me-2"></i>Importar Planilha
+            </button>
+            <input type="file" id="fileInput" hidden accept=".xlsx,.xls" onchange="importarExcel(this)">
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4"><input type="checkbox" id="cbAll" class="form-check-input"></th>
+                            <th>Cód. Principal</th>
+                            <th>Cód. Secundário</th>
+                            <th>Descrição</th>
+                            <th>Local / Gaveta</th>
+                            <th>Qtd. Local</th>
+                            <th>End. Lote (Torre)</th>
+                            <th>Qtd. Torre</th>
+                            <th>Abastecimento</th>
+                            <th>Observação</th>
+                            <th>Atualizado</th>
+                            <th class="pe-4">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="corpoTabela">
+                        <tr><td colspan="12" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Carregando...</p></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    let estoqueOriginal = [];
+
+    async function carregarDados() {
+        const res = await fetch('/api/estoque');
+        const dados = await res.json();
+        estoqueOriginal = dados;
+        renderizarTabela(dados);
+        atualizarResumo(dados);
+    }
+
+    function renderizarTabela(dados) {
+        const corpo = document.getElementById('corpoTabela');
+        corpo.innerHTML = '';
+        
+        dados.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="ps-4"><input type="checkbox" class="form-check-input"></td>
+                <td class="fw-bold text-primary">${item.cod_principal || ''}</td>
+                <td>${item.cod_secundario || ''}</td>
+                <td class="small">${item.descricao || ''}</td>
+                <td><span class="badge bg-light text-dark border">${item.local_gaveta || ''}</span></td>
+                <td><input type="text" class="form-control form-control-sm text-center" value="${item.qtd_local || ''}" onchange="updateField(${item.id}, 'qtd_local', this.value)"></td>
+                <td><input type="text" class="form-control form-control-sm text-center" value="${item.end_lote_torre || ''}" onchange="updateField(${item.id}, 'end_lote_torre', this.value)"></td>
+                <td><input type="text" class="form-control form-control-sm text-center" value="${item.qtd_torre || ''}" onchange="updateField(${item.id}, 'qtd_torre', this.value)"></td>
+                <td>
+                    <select class="form-select form-select-sm" onchange="updateField(${item.id}, 'abastecimento', this.value)">
+                        <option value="A Abastecer" ${item.abastecimento === 'A Abastecer' ? 'selected' : ''}>🔴 A Abastecer</option>
+                        <option value="Abastecido" ${item.abastecimento === 'Abastecido' ? 'selected' : ''}>🟢 Abastecido</option>
+                    </select>
+                </td>
+                <td><input type="text" class="form-control form-control-sm" value="${item.observacao || ''}" onchange="updateField(${item.id}, 'observacao', this.value)"></td>
+                <td class="small text-muted">${item.atualizado || ''}</td>
+                <td class="pe-4">
+                    <button class="btn btn-sm btn-outline-primary" onclick="salvarLinha(${item.id})"><i class="bi bi-save"></i></button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="excluirLinha(${item.id})"><i class="bi bi-trash"></i></button>
+                </td>
+            `;
+            corpo.appendChild(tr);
+        });
+    }
+
+    function atualizarResumo(dados) {
+        document.getElementById('totalItems').innerText = dados.length;
+        document.getElementById('totalAbastecer').innerText = dados.filter(i => i.abastecimento === 'A Abastecer').length;
+        document.getElementById('totalAbastecido').innerText = dados.filter(i => i.abastecimento === 'Abastecido').length;
+    }
+
+    async function updateField(id, field, value) {
+        const item = estoqueOriginal.find(i => i.id === id);
+        item[field] = value;
+    }
+
+    async function salvarLinha(id) {
+        const item = estoqueOriginal.find(i => i.id === id);
+        const res = await fetch('/api/estoque', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(item)
+        });
+        if(res.ok) {
+            alert('Salvo com sucesso!');
+            carregarDados();
+        }
+    }
+
+    async function importarExcel(input) {
+        const formData = new FormData();
+        formData.append('file', input.files[0]);
+        const res = await fetch('/api/importar', { method: 'POST', body: formData });
+        if(res.ok) {
+            alert('Importado com sucesso!');
+            carregarDados();
+        }
+    }
+
+    // Filtros
+    document.getElementById('search').addEventListener('input', (e) => {
+        const termo = e.target.value.toLowerCase();
+        const filtrados = estoqueOriginal.filter(i => 
+            (i.cod_principal && i.cod_principal.toLowerCase().includes(termo)) ||
+            (i.descricao && i.descricao.toLowerCase().includes(termo)) ||
+            (i.local_gaveta && i.local_gaveta.toLowerCase().includes(termo))
+        );
+        renderizarTabela(filtrados);
+    });
+
+    document.getElementById('filtStatus').addEventListener('change', (e) => {
+        const status = e.target.value;
+        const filtrados = status ? estoqueOriginal.filter(i => i.abastecimento === status) : estoqueOriginal;
+        renderizarTabela(filtrados);
+    });
+
+    carregarDados();
+</script>
+</body>
+</html>
